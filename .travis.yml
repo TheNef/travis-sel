@@ -1,0 +1,101 @@
+language: php
+
+php:
+  - 5.3
+
+env:
+  global:
+    # Your Pantheon site's UUID (e.g. from your dashboard URL)
+    - PUUID='5d6c3b52-b516-46a2-870b-a6c9f0313c16'
+
+    # Your Pantheon site's name.
+    - PNAME='travis-test'
+
+    # The Pantheon environment name from which Multidev DB/files will be pulled.
+    # Probably one of: dev, test, live.
+    - PENV='dev'
+    - PSOURCE='dev'
+
+    # The user you interact with Pantheon as
+    - PEMAIL='kevin@bt48.com'
+
+    # SECRET/PRIVATE VARIABLES
+    #
+    # These are created by using the travis command locally to encrypt some values.
+    #
+    # See: http://docs.travis-ci.com/user/build-configuration/#Secure-environment-variables
+    #
+    # PEMAIL environment variable: represents the Pantheon account e-mail with
+    # access to this site. Used to authenticate to Pantheon via Terminus. You
+    # must cd to your project root and run:
+    #
+    # travis encrypt PEMAIL='test@example.com'
+    #
+    - secure: "Hxizdi0zbXhk2BzawGQODe4cmvIwAopfExvyqWcnoTx4TtlcM+Iqh1mhPUo+su44aKqjBQ9fI2wXrNJ8k0Btd3qE1z8Bb/X3FiCWIQTcjKKWNlKl0Xvt4t11Kp6v/+Wp7ethzPTJf8/HBbDeEJOfay1ywNnBUdxO4Glabt+vNPdcN+RJWjRsRmu17SSk6KxDCRcEneopNSkimlF2ja/hlHeBy9VqUpM2eTk3XwHcpC2qyD/QBKvhEujvyiViC5HTk3J7JpwTYOuUgaHMWV+RIOvD47Jsi3tz95YaKnikKmzDaCHgtm/pJXr5xbYpCSZDowpOwmcYwAJE8wS2gnLBi6RMqnG2+SS+KUTi2DN65yUMLIljDgiaIc66YORGfT9DnzU5l38atymFzcxdP0Qki/t2MvvBxhlMNr7TNu1BAw5psW9tvwKWjReq6y2jk5pezRCtQbR8phinyb8rcOJBpORaSvLxmUUOlCsqG7az8DGAg4EI8HZL9mCerlD7STCidjTwy4cc4e2BllfoZWk/gh8esuuSwFKrBXl+l5OSaXTgUr7xVJiTs6arI0L5Qodl9m6PfhQDPojQONoZVcI40+TU42ZZzqWX5j8DnWa9a8lLDn6XDdyNNXKS3lSq6sf28cg8Hyr6DTdDj3M83D3EoRMO4vNB0ja6qR1Np83+nnI="
+
+    #
+    # PPASS environment variable: represents the Pantheon account password for
+    # the above encrypted e-mail address. Run:
+    #
+    # travis encrypt PPASS='my_account_password'
+    #
+    - secure: "gu0+L7qdCOLVzZNbCvuMeCa9R94KCU19DduuC57Ny3d+Hjq4u/qDBFQSIn106CCFLH7hXcnBvcNYAa7XpdwQUe7u/erth1nfrqefByrONn8azTADflMWpj4g2geOtOknoqlllrxYpuV8xNKiQXunsox3MdfhkQ6dkBAXQxWpTtFlTbUUBnMgvN+zGJmL6LtEjt9dbQ/Pp912GN+LoC6jTLx+rfUAVy5y3YTivM747kuPlKtRnjnGeFXCDMN9ijmyJJdyzeBn8Wau/YYalqAp9is9M5wGngPneo5aTAotA9xrqfVCbk9WR1r2IhzWJWA6KJf4Cil9iiRXOGGyzmGeijazZsjIKLZnzcc1rs5kGK2Wv1ACT8ZA92eMDyhU2IA9AedxvlNy+F8u5Tr1chg8FBPVfDCrrumbCRv9y56djITcanJHHqNLVbnYloJkDDmyr8I8V9hj0DVtKH3vJ7NhebEH2HIUELCUj1Ii3ydvFAXr5IYMnexK8Fa6Uw1R+0muf1cNDmf1GoqRcMpNyJDWKjxMVlAm2o8upz2p47Cv8FmFvht9P3knW3rKDJqfxzZrRzvwz9HuQhEfMDCshcBA/AkmZGDnC7ivbNdxt/ZV9BJmXPgLXvxNRAc7KClncHvXLm/20nleJRhnCU+pQPoBUl9zWB9fMwQ3YwXIg3QqXmw="
+
+before_install:
+    # Place a passphrase-free ssh key so that you can clone and push to your
+    # Pantheon git repository.
+    #
+    # Use the travis encrypt-file command to generate your own.
+    #
+    # See: http://docs.travis-ci.com/user/encrypting-files/
+    #
+    - openssl aes-256-cbc -K $encrypted_e14e8e605e4c_key -iv $encrypted_e14e8e605e4c_iv -in travis-ci-key.enc -out ~/.ssh/id_rsa -d
+    - chmod 0600 ~/.ssh/id_rsa
+
+
+install:
+    - echo "StrictHostKeyChecking no" > ~/.ssh/config
+
+    # Install Drush and Behat
+    - composer install
+    - export PATH="$HOME/.composer/vendor/bin:$PATH"
+    - sudo curl https://github.com/pantheon-systems/cli/releases/download/0.7.0/terminus.phar -L -o /usr/local/bin/terminus 
+    - sudo chmod +x /usr/local/bin/terminus
+
+before_script:
+    - sudo terminus cli version
+    - sudo terminus auth login $PEMAIL --password=$PPASS
+
+script:
+
+    # Generate a random branch / multidev name, prefixed with "ci" followed
+    # by the Travis build number. Note, due to Pantheon multidev environment
+    # name limits, builds will start failing at #100000.
+
+    - PSITE=$(cat /dev/urandom | tr -cd 'a-z0-9' | head -c 4)
+    - PSITE="ci$TRAVIS_BUILD_NUMBER-$PSITE"
+
+    # You can use $PHOST as a reference to the resulting multidev hostname.
+    - PHOST="http://$PSITE-$PNAME.pantheon.io"
+    - sudo terminus site create-env --site=$PNAME --env=$PSITE --from-env=$PENV
+    - BEHAT_BASE_URL="extensions[Behat\MinkExtension\Extension][base_url]=$PHOST"
+    - echo $BEHAT_BASE_URL
+    - export BEHAT_PARAMS=$BEHAT_BASE_URL
+    - bash scripts/run_tests.sh
+    
+after_script:
+  # General-purpose clean-up could go here.
+
+
+after_success:
+  # Maybe promote to test here?
+
+after_failure:
+  # Maybe roll back?
+
+notifications:
+  email:
+    recipients:
+      # - kevin@bt48.com
+    on_success: always
+    on_failure: always
